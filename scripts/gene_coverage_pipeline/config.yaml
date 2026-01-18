@@ -1,7 +1,6 @@
 #########################
 # Directories and files
 #########################
-GENE_CATALOG_DIR: "" # Location of the directory containing the gene catalogue that was produced from the gene_catalogue_pipeline workflow
 WORKING_DIR: "" # Output directory - note that if you plan to run this workflow on both metagenomes and metatranscriptomes, then I would suggest to set this to e.g. 'MG_analysis' for your metagenome samples and then change to 'MT_analysis' for your metatranscriptome samples
 REFERENCE: "" # Gene catalogue representatives fasta file (in nucleotide format)
 WORKFLOW_DIR: "" # Path to this directory (gene_coverage_pipeline directory)
