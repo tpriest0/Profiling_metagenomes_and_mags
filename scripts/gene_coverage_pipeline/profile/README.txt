@@ -1,0 +1,1 @@
+Profile config file that defines job submission format and parameters in the snakemake workflow. The current config file is designed for job submission through SLURM. This needs to be adjusted to match your system set up.
