@@ -1,14 +1,13 @@
 #########################
 # Directories and files
 #########################
-GENE_CATALOG_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/02output/gene_catalog"
-WORKING_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/02output/test_dir/MT_analysis"
-REFERENCE: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/02output/gene_catalog/CadagnoSediment_2024.genes.reps.nt.fa"
-SCRIPTS_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/01code/gene_coverage_pipeline"
-SAMPLE_NAMES: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/00raw/MT_sample_names.tmp"
-READ_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/00raw/reads_MT/"
-ENVS_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/01code/gene_coverage_pipeline/envs"
-OUT_PREFIX: "CadagnoSediment_2024"
+GENE_CATALOG_DIR: "" # Location of the directory containing the gene catalogue that was produced from the gene_catalogue_pipeline workflow
+WORKING_DIR: "" # Output directory - note that if you plan to run this workflow on both metagenomes and metatranscriptomes, then I would suggest to set this to e.g. 'MG_analysis' for your metagenome samples and then change to 'MT_analysis' for your metatranscriptome samples
+REFERENCE: "" # Gene catalogue representatives fasta file (in nucleotide format)
+WORKFLOW_DIR: "" # Path to this directory (gene_coverage_pipeline directory)
+SAMPLE_NAMES: "" # File containing list of sample names
+READ_DIR: "" # Path to directory containing the R1 and R2 metagenomic reads used to build the assemblies. Note that these files must be named SAMPLE_NAME_1.fa.gz and SAMPLE_NAME_2.fa.gz
+OUT_PREFIX: "" # Prefix for output files (i.e. project name)
 
 
 #########################
