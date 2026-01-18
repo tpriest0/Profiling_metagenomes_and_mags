@@ -1,0 +1,37 @@
+name: bwa_env
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+  - r
+dependencies:
+  - _libgcc_mutex=0.1=conda_forge
+  - _openmp_mutex=4.5=2_gnu
+  - bwa=0.7.18=he4a0461_1
+  - bzip2=1.0.8=hda65f42_8
+  - c-ares=1.11.0=h470a237_1
+  - ca-certificates=2025.11.12=hbd8a1cb_0
+  - curl=7.71.1=he644dc0_8
+  - htslib=1.9=ha228f0b_7
+  - krb5=1.17.2=h926e7f8_0
+  - libcurl=7.71.1=hcdd3856_8
+  - libdeflate=1.0=h14c3975_1
+  - libedit=3.1.20191231=h46ee950_2
+  - libev=4.33=hd590300_2
+  - libgcc=15.2.0=he0feb66_12
+  - libgcc-ng=15.2.0=h69a702a_12
+  - libgomp=15.2.0=he0feb66_12
+  - libnghttp2=1.41.0=hab1572f_1
+  - libssh2=1.10.0=haa6b8db_3
+  - libstdcxx=15.2.0=h934c35e_12
+  - libstdcxx-ng=15.2.0=hdf11a46_12
+  - libxcrypt=4.4.36=hd590300_1
+  - libzlib=1.2.13=h4ab18f5_6
+  - ncurses=6.1=hf484d3e_1002
+  - openssl=1.1.1w=hd590300_0
+  - perl=5.32.1=7_hd590300_perl5
+  - samtools=1.9=h10a08f8_12
+  - tk=8.6.13=noxft_h4845f30_101
+  - xz=5.2.6=h166bdaf_0
+  - zlib=1.2.13=h4ab18f5_6
+prefix: /nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/miniconda3/envs/bwa_env
