@@ -1,0 +1,20 @@
+#########################
+# Directories and files
+#########################
+#WORKING_DIR: "/cluster/work/sunagawa/tpriest/bledina_project"
+WORKING_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/02output"
+SCRIPTS_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/01code/gene_catalog_pipeline"
+ENVS_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/01code/gene_catalog_pipeline/envs"
+SAMPLE_NAMES: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/00raw/MG_sample_names.txt"
+CONTIGS_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/00raw/contigs"
+#CONTIGS_DIR: "/cluster/work/sunagawa/tpriest/bledina_project/contigs"
+OUT_PREFIX: "CadagnoSediment_2024"
+
+# EXAMPLE EXECUTION
+# snakemake \
+#   -n \
+#   -s scripts/gene_catalog_pipeline/gene_catalog_pipeline.smk \
+#   --configfile scripts/gene_catalog_pipeline/config.yaml \
+#   --profile scripts/profile/ \
+#   --use-conda \
+#   --rerun-incomplete
