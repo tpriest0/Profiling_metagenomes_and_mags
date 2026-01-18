@@ -1,10 +1,3 @@
-
-
-### COMMAND ###
-
-# snakemake -s 01code/gene_catalog_pipeline/gene_catalog_pipeline.smk --configfile 01code/gene_catalog_pipeline/config.yaml --profile 01code/profile/ --use-conda --rerun-incomplete
-###
-
 import glob
 import os
 import pandas as pd
@@ -26,7 +19,7 @@ rule all:
         
 rule pred_genes:
     conda:
-        os.path.join(config['ENVS_DIR'], "predict_genes_env.yaml")
+        os.path.join(config['WORKFLOW_DIR'], "envs", "predict_genes_env.yaml")
     input:
         contigs=os.path.join(config['CONTIGS_DIR'], "{sample}.contigs.fa")
     output:
@@ -40,7 +33,7 @@ rule pred_genes:
     resources:
         mem=500
     params:
-        input_script=os.path.join(config['SCRIPTS_DIR'], "predict_genes_chunked.py")
+        input_script=os.path.join(config['WORKFLOW_DIR'], "predict_genes_chunked.py")
     log:
         os.path.join(config['WORKING_DIR'], "logs", "pred_genes_{sample}.log")
     shell:
@@ -67,7 +60,6 @@ rule pred_genes:
             echo "Gene prediction failed for {wildcards.sample}"
         fi
         """
-
 
 def get_aa_files(wildcards):
     """Return list of all predicted amino acid gene FASTAs."""
@@ -116,7 +108,7 @@ rule concat_genes:
 
 rule build_catalog:
     conda:
-        os.path.join(config['ENVS_DIR'], "mmseqs2_env.yaml")
+        os.path.join(config['WORKFLOW_DIR'], "envs", "mmseqs2_env.yaml")
     input:
         marker=os.path.join(config['WORKING_DIR'], "gene_catalog", "concat_genes.done")
     output:
@@ -185,7 +177,7 @@ rule extract_nucleotide_reps:
 
 rule build_index:
     conda:
-        os.path.join(config['ENVS_DIR'], "bwa_env.yaml")
+        os.path.join(config['WORKFLOW_DIR'], "envs", "bwa_env.yaml")
     input:
         marker=os.path.join(config['WORKING_DIR'], "gene_catalog", "extract_reps.done")
     output:
@@ -209,7 +201,7 @@ rule build_index:
 
 rule extract_scgs:
     conda:
-         os.path.join(config['ENVS_DIR'], "fetchmgs_env.yaml")
+         os.path.join(config['WORKFLOW_DIR'], "envs", "fetchmgs_env.yaml")
     input:
         marker=os.path.join(config['WORKING_DIR'], "gene_catalog", "extract_reps.done")
     output:
