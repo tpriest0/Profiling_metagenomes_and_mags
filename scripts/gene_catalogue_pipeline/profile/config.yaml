@@ -1,0 +1,12 @@
+######################### 
+# Execution parameters 
+######################### 
+cluster: "sbatch --ntasks 1 --cpus-per-task {threads} --mem-per-cpu {resources.mem}M --time 1-24:00:00 --job-name {rule} --partition sunagawa -o {log}.out -e {log}.err" 
+latency-wait: 120 
+use-conda: true 
+max-jobs-per-second: 1 
+max-status-checks-per-second: 0.1 
+scheduler: greedy 
+greediness: 0.5 
+cluster-cancel: scancel 
+jobs: 8
