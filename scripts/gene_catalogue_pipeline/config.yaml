@@ -1,14 +1,11 @@
 #########################
 # Directories and files
 #########################
-#WORKING_DIR: "/cluster/work/sunagawa/tpriest/bledina_project"
-WORKING_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/02output"
-SCRIPTS_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/01code/gene_catalog_pipeline"
-ENVS_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/01code/gene_catalog_pipeline/envs"
-SAMPLE_NAMES: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/00raw/MG_sample_names.txt"
-CONTIGS_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/00raw/contigs"
-#CONTIGS_DIR: "/cluster/work/sunagawa/tpriest/bledina_project/contigs"
-OUT_PREFIX: "CadagnoSediment_2024"
+WORKING_DIR: "" #This will serve as the output directory
+WORKFLOW_DIR: "path/to/gene_catalog_pipeline" # This should be the path to the gene_catalogue_pipeline workflow directory obtained from this repository
+SAMPLE_NAMES: "" # A file containing the list of metagenomic sample names to apply the workflow too. Note that the contig files must be names as SAMPLE_NAME.fa
+CONTIGS_DIR: "" # Path to the directory containing the metagenomic contig files
+OUT_PREFIX: "" # Output prefix to append to filenames (i.e. a project name)
 
 # EXAMPLE EXECUTION
 # snakemake \
