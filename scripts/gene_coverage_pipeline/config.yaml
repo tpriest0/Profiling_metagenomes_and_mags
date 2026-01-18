@@ -1,0 +1,18 @@
+#########################
+# Directories and files
+#########################
+GENE_CATALOG_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/02output/gene_catalog"
+WORKING_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/02output/test_dir/MT_analysis"
+REFERENCE: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/02output/gene_catalog/CadagnoSediment_2024.genes.reps.nt.fa"
+SCRIPTS_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/01code/gene_coverage_pipeline"
+SAMPLE_NAMES: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/00raw/MT_sample_names.tmp"
+READ_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/00raw/reads_MT/"
+ENVS_DIR: "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/bledina_cadagno/01code/gene_coverage_pipeline/envs"
+OUT_PREFIX: "CadagnoSediment_2024"
+
+
+#########################
+# Execution code
+#########################
+
+# snakemake -n -s 01code/gene_coverage_pipeline/gene_coverage_pipeline.smk --configfile 01code/gene_coverage_pipeline/config.yaml --profile 01code/profile/ --use-conda --rerun-incomplete
