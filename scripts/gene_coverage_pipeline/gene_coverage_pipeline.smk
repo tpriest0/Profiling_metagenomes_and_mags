@@ -11,28 +11,26 @@ SAMPLES = pd.read_csv(config['SAMPLE_NAMES'], header=None)[0].tolist()
 os.makedirs(os.path.join(config['WORKING_DIR'], "logs"), exist_ok=True)
 
 def read1(sample):
-    return os.path.join(config['READ_DIR'], f"{sample}", f"{sample}_PE1_trim_clean.fq.gz")
+    return os.path.join(config['READ_DIR'], f"{sample}", f"{sample}_1.fq.gz")
 
 def read2(sample):
-    return os.path.join(config['READ_DIR'], f"{sample}" ,f"{sample}_PE2_trim_clean.fq.gz")
+    return os.path.join(config['READ_DIR'], f"{sample}" ,f"{sample}_2.fq.gz")
 
 ######################
 # Rules
 ######################
 rule all:
     input:
-        build_index_marker = os.path.join(config['GENE_CATALOG_DIR'], "build_index.done"),
         map_reads_markers = expand(os.path.join(config['WORKING_DIR'], "map_reads", "map_reads_{sample}.done"), sample=SAMPLES),
         filter_mapped_reads_markers = expand(os.path.join(config['WORKING_DIR'], "filter_mapped_reads", "filter_{sample}.done"), sample=SAMPLES),
         bam_to_coverage_markers = expand(os.path.join(config['WORKING_DIR'], "coverage", "bam_to_coverage_{sample}.done"), sample=SAMPLES)
 
 rule map_reads:
     conda:
-        os.path.join(config['ENVS_DIR'], "bwa_env.yaml")
+        os.path.join(config['WORKFLOW_DIR'], "envs", "bwa_env.yaml")
     input:
         r1=lambda wc: read1(wc.sample),
-        r2=lambda wc: read2(wc.sample),
-        marker=os.path.join(config['GENE_CATALOG_DIR'], "build_index.done")
+        r2=lambda wc: read2(wc.sample)
     output:
         marker=os.path.join(config['WORKING_DIR'], "map_reads", "map_reads_{sample}.done")
     threads: 
@@ -68,7 +66,7 @@ rule map_reads:
 
 rule filter_mapped_reads:
     conda:
-        os.path.join(config['ENVS_DIR'], "bwa_env.yaml")
+        os.path.join(config['WORKFLOW_DIR'], "envs", "bwa_env.yaml")
     input:
         marker=os.path.join(config['WORKING_DIR'], "map_reads", "map_reads_{sample}.done")
     output:
@@ -131,7 +129,7 @@ rule filter_mapped_reads:
 
 rule bam_to_coverage:
     conda:
-        os.path.join(config['ENVS_DIR'], "python_env.yaml")
+        os.path.join(config['WORKFLOW_DIR'], "envs", "python_env.yaml")
     input:
         marker=os.path.join(config['WORKING_DIR'], "filter_mapped_reads", "filter_{sample}.done")
     output:
@@ -141,7 +139,7 @@ rule bam_to_coverage:
     resources:
         mem=8000
     params:
-        coverage_script=os.path.join(config['SCRIPTS_DIR'], "calc_gene_coverage_from_bam.py"),
+        coverage_script=os.path.join(config['WORKFLOW_DIR'], "calc_gene_coverage_from_bam.py"),
         filtbam=os.path.join(config['WORKING_DIR'], "filter_mapped_reads", "{sample}.filtered.bam"),
         coverage=os.path.join(config['WORKING_DIR'], "coverage", "{sample}.coverage.tsv")
     log:
