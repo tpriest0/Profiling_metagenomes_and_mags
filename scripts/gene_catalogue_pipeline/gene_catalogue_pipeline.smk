@@ -15,7 +15,7 @@ rule all:
     input:
         pred_gene_marker = expand(os.path.join(config['WORKING_DIR'], "genes", "pred_genes_{sample}.done"), sample=SAMPLES),
         gene_catalog_marker = expand(os.path.join(config['WORKING_DIR'], "gene_catalog", "build_index.done")),        
-        scgs_marker = expand(os.path.join(config['WORKING_DIR'], "scgs", "extract_scgs.done"))
+        scgs_marker = expand(os.path.join(config['WORKING_DIR'], "gene_catalog", "scgs", "extract_scgs.done"))
         
 rule pred_genes:
     conda:
@@ -206,13 +206,13 @@ rule extract_scgs:
     input:
         marker=os.path.join(config['WORKING_DIR'], "gene_catalog", "extract_reps.done")
     output:
-        marker=os.path.join(config['WORKING_DIR'], "scgs", "extract_scgs.done")
+        marker=os.path.join(config['WORKING_DIR'], "gene_catalog", "scgs", "extract_scgs.done")
     threads: 
         50
     resources:
         mem=500
     params:
-        scgs_dir=os.path.join(config['WORKING_DIR'], "scgs"),
+        scgs_dir=os.path.join(config['WORKING_DIR'], "gene_catalog", "scgs"),
         out_prefix=config["OUT_PREFIX"],
         reps_aa=expand(os.path.join(config['WORKING_DIR'], "gene_catalog", config["OUT_PREFIX"] + ".genes.reps.aa.fa")),
         reps_nt=expand(os.path.join(config['WORKING_DIR'], "gene_catalog", config["OUT_PREFIX"] + ".genes.reps.nt.fa")),
