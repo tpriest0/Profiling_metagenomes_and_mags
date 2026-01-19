@@ -3,52 +3,10 @@ import os
 import pandas as pd
 
 ######################
-# Generate paths to R1 and R2 reads
+# Generate paths
 ######################
 SAMPLES = pd.read_csv(config['SAMPLE_NAMES'], header=None)[0].tolist()
 os.makedirs(os.path.join(config['WORKING_DIR'], "logs"), exist_ok=True)
-
-
-R1_TAGS = ["_1", "_R1"]
-R2_TAGS = ["_2", "_R2"]
-EXTS = [".fa.gz", ".fq.gz", ".fasta.gz", ".fastq.gz"]
-
-
-def find_read(sample, read_dir, tags):
-    """
-    Find exactly one read file for a given sample and read direction.
-    Raises a clear error if zero or multiple matches are found.
-    """
-    sample_dir = os.path.join(read_dir, sample)
-    candidates = []
-
-    for tag in tags:
-        for ext in EXTS:
-            pattern = os.path.join(sample_dir, f"{sample}{tag}*{ext}")
-            candidates.extend(glob.glob(pattern))
-
-    candidates = sorted(set(candidates))
-
-    if len(candidates) == 0:
-        raise ValueError(
-            f"[ERROR] No reads found for sample '{sample}' with tags {tags} "
-            f"in {sample_dir}"
-        )
-    if len(candidates) > 1:
-        raise ValueError(
-            f"[ERROR] Multiple read files found for sample '{sample}' with tags {tags}:\n"
-            + "\n".join(candidates)
-        )
-
-    return candidates[0]
-
-
-def read1(sample):
-    return find_read(sample, config["READ_DIR"], R1_TAGS)
-
-
-def read2(sample):
-    return find_read(sample, config["READ_DIR"], R2_TAGS)
 
 ######################
 # Rules
