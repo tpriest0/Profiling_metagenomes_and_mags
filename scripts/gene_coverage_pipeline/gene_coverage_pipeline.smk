@@ -62,7 +62,7 @@ rule all:
 
 rule map_reads:
     conda:
-        os.path.join(config['ENVS_DIR'], "bwa_env.yaml")
+        os.path.join(config['WORKFLOW_DIR'], "envs", "bwa_env.yaml")
     input:
         r1=lambda wc: read1(wc.sample),
         r2=lambda wc: read2(wc.sample),
@@ -102,7 +102,7 @@ rule map_reads:
 
 rule filter_mapped_reads:
     conda:
-        os.path.join(config['ENVS_DIR'], "bwa_env.yaml")
+        os.path.join(config['WORKFLOW_DIR'], "envs", "bwa_env.yaml")
     input:
         marker=os.path.join(config['WORKING_DIR'], "map_reads", "map_reads_{sample}.done")
     output:
@@ -165,7 +165,7 @@ rule filter_mapped_reads:
 
 rule bam_to_coverage:
     conda:
-        os.path.join(config['ENVS_DIR'], "python_env.yaml")
+        os.path.join(config['WORKFLOW_DIR'], "envs", "python_env.yaml")
     input:
         marker=os.path.join(config['WORKING_DIR'], "filter_mapped_reads", "filter_{sample}.done")
     output:
@@ -175,7 +175,7 @@ rule bam_to_coverage:
     resources:
         mem=8000
     params:
-        coverage_script=os.path.join(config['SCRIPTS_DIR'], "calc_gene_coverage_from_bam.py"),
+        coverage_script=os.path.join(config['WORKFLOW_DIR'], "calc_gene_coverage_from_bam.py"),
         filtbam=os.path.join(config['WORKING_DIR'], "filter_mapped_reads", "{sample}.filtered.bam"),
         coverage=os.path.join(config['WORKING_DIR'], "coverage", "{sample}.coverage.tsv")
     log:
