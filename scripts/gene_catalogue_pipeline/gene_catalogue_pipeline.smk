@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 ######################
-# Generate paths
+# Generate paths to R1 and R2 reads
 ######################
 SAMPLES = pd.read_csv(config['SAMPLE_NAMES'], header=None)[0].tolist()
 os.makedirs(os.path.join(config['WORKING_DIR'], "logs"), exist_ok=True)
@@ -60,6 +60,7 @@ rule pred_genes:
             echo "Gene prediction failed for {wildcards.sample}"
         fi
         """
+
 
 def get_aa_files(wildcards):
     """Return list of all predicted amino acid gene FASTAs."""
