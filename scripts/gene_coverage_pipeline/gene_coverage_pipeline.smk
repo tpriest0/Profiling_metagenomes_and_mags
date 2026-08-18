@@ -58,7 +58,8 @@ rule all:
         build_index_marker = os.path.join(config['OUTPUT_DIR'], "gene_catalog", "build_index.done"),
         map_reads_markers = expand(os.path.join(config['OUTPUT_DIR'], "map_reads", "map_reads_{sample}.done"), sample=SAMPLES),
         filter_mapped_reads_markers = expand(os.path.join(config['OUTPUT_DIR'], "filter_mapped_reads", "filter_{sample}.done"), sample=SAMPLES),
-        bam_to_coverage_markers = expand(os.path.join(config['OUTPUT_DIR'], "coverage", "bam_to_coverage_{sample}.done"), sample=SAMPLES)
+        bam_to_coverage_markers = expand(os.path.join(config['OUTPUT_DIR'], "coverage", "bam_to_coverage_{sample}.done"), sample=SAMPLES),
+        normalise_coverage_markers = expand(os.path.join(config['OUTPUT_DIR'], "coverage_normalised", "normalise_{sample}.done"), sample=SAMPLES)
 
 rule bwa_index:
     conda:
@@ -246,6 +247,86 @@ rule bam_to_coverage:
             touch {output.marker}
         else
             echo "Calculation of coverage statistics for {wildcards.sample} FAILED" >> {log}
+            exit 1
+        fi
+        """
+
+rule normalise_coverage_by_scgs:
+    conda:
+        os.path.join(config['WORKFLOW_DIR'], "envs", "bwa_env.yaml")
+    input:
+        marker=os.path.join(config['OUTPUT_DIR'], "coverage", "bam_to_coverage_{sample}.done"),
+        scg_mapping=config['SCG_MAPPING']
+    output:
+        marker=os.path.join(config['OUTPUT_DIR'], "coverage_normalised", "normalise_{sample}.done")
+    threads:
+        1
+    resources:
+        mem=8000
+    params:
+        breadth_threshold=95,
+        coverage=os.path.join(config['OUTPUT_DIR'], "coverage", "{sample}.coverage.tsv"),
+        normalised_coverage=os.path.join(config['OUTPUT_DIR'], "coverage_normalised", "{sample}.coverage.normalised.tsv")
+    log:
+        os.path.join(config['OUTPUT_DIR'], "logs", "normalise_coverage_{sample}.log")
+    shell:
+        """
+        echo "Estimating the number of genomes sequenced and calculating genome-normalised gene coverage for {wildcards.sample}" >> {log}
+
+        if [[ -s {params.coverage} ]] && [[ -s {input.scg_mapping} ]];
+        then
+            awk -v OFS="\\t" -v thresh={params.breadth_threshold} '
+            BEGIN {{
+                # Load single-copy marker gene -> COG mapping (global, one file
+                # for the whole gene catalogue -- not sample-specific)
+                while ((getline line < "{input.scg_mapping}") > 0) {{
+                    split(line, f, "\\t")
+                    if (f[1] != "Gene_name") scg_cog[f[1]] = f[2]
+                }}
+                close("{input.scg_mapping}")
+            }}
+            NR==1 {{ next }}  # skip coverage file header
+            $4 >= thresh {{
+                # Task 1: retain only genes with Prop_bases_covered >= 95
+                n++
+                gene[n]=$1; genelen[n]=$2; covbases[n]=$3; propcov[n]=$4; meandepth[n]=$5; mdpk[n]=$6
+
+                # Task 2: sum length-normalised coverage per marker COG
+                # (only genes surviving the filter above contribute)
+                if ($1 in scg_cog) {{
+                    cog_sum[scg_cog[$1]] += $6
+                }}
+            }}
+            END {{
+                # Task 3: Number_of_genomes_sequenced = mean of the per-COG
+                # sums, denominator = number of marker COGs actually detected
+                # (observed-only -- undetected COGs are simply not counted)
+                n_cogs = 0; total = 0
+                for (c in cog_sum) {{ total += cog_sum[c]; n_cogs++ }}
+                genomes_sequenced = (n_cogs > 0) ? total / n_cogs : "NA"
+
+                # Task 5: write filtered table with Gene_length retained and
+                # the new normalised column added
+                print "Gene","Gene_length","Num_bases_covered","Prop_bases_covered","Mean_depth","Mean_depth_per_kbp","Copy_number_per_genome"
+                for (i=1; i<=n; i++) {{
+                    # Task 4: normalise every retained gene's coverage by
+                    # Number_of_genomes_sequenced
+                    copy_num = (genomes_sequenced != "NA" && genomes_sequenced > 0) ? mdpk[i] / genomes_sequenced : "NA"
+                    print gene[i], genelen[i], covbases[i], propcov[i], meandepth[i], mdpk[i], copy_num
+                }}
+            }}' {params.coverage} > {params.normalised_coverage} &>> {log}
+        else
+            echo "Coverage table for {wildcards.sample} not found" >> {log}
+            echo "Exiting..."
+            exit 1
+        fi
+
+        if [[ -s {params.normalised_coverage} ]];
+        then
+            echo "Genome-normalised coverage table created for {wildcards.sample}"
+            touch {output.marker}
+        else
+            echo "Genome-normalised coverage table FAILED for {wildcards.sample}"
             exit 1
         fi
         """
