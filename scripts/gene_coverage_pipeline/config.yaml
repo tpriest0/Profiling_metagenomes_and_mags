@@ -6,7 +6,7 @@ WORKFLOW_DIR: "" # Path to this directory (gene_coverage_pipeline directory)
 SAMPLE_NAMES: "" # File containing list of sample names
 READ_DIR: "" # Path to directory containing the R1 and R2 metagenomic reads used to build the assemblies. Note that these files must be named SAMPLE_NAME_1.fa.gz and SAMPLE_NAME_2.fa.gz
 REFERENCE: "" # This should be set to the gene catalogue nucleotide fasta file that was produced from the gene_catalogue_pipeline workflow.
-SCG_MAPPING: "" # This should be set to the single-copy marker gene name mapping file produced from the gene_catalogue_pipeline workflow. Note, the file is the one in the gene_catalog/scgs/ directory, ending in 'SCGS_to_gene_name_mapping.tsv'
+
 #########################
 # Execution code
 #########################
