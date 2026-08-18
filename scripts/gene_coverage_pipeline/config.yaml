@@ -1,7 +1,7 @@
 #########################
 # Directories and files
 #########################
-WORKING_DIR: "" # Output directory - note that if you plan to run this workflow on both metagenomes and metatranscriptomes, then I would suggest to set this to e.g. 'MG_analysis' for your metagenome samples and then change to 'MT_analysis' for your metatranscriptome samples
+OUTPUT_DIR: "" # Output directory - note that if you plan to run this workflow on both metagenomes and metatranscriptomes, then I would suggest to set this to e.g. 'MG_analysis' for your metagenome samples and then change to 'MT_analysis' for your metatranscriptome samples
 WORKFLOW_DIR: "" # Path to this directory (gene_coverage_pipeline directory)
 SAMPLE_NAMES: "" # File containing list of sample names
 READ_DIR: "" # Path to directory containing the R1 and R2 metagenomic reads used to build the assemblies. Note that these files must be named SAMPLE_NAME_1.fa.gz and SAMPLE_NAME_2.fa.gz
