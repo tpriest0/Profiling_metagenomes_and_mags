@@ -19,7 +19,6 @@ parser.add_argument("-s", "--scgs_list", required=True, help="Path to SCG list m
 parser.add_argument("-b", "--breadth_threshold", type=float, default=95.0,
                      help="Minimum horizontal coverage (Prop_bases_covered, on a 0-100 scale) required to retain a gene (default: 95.0)")
 parser.add_argument("--threads", type=int, default=4, help="Number of threads")
-parser.add_argument("--epsilon", type=float, default=1e-6, help="Small value to avoid log(0)")
 args = parser.parse_args()
 
 #####
@@ -140,8 +139,11 @@ for _, row in mapping_df.iterrows():
 
         merged["MetaG_sample"] = mg_name
         merged["MetaT_sample"] = mt_name
-        merged["log2_expr"] = np.log2((merged["Coverage_per_cell_MT"] + args.epsilon) /
-                                      (merged["Coverage_per_cell_MG"] + args.epsilon))
+        merged["log2_expr"] = np.nan
+        mask = (merged["Coverage_per_cell_MG"] > 0) & (merged["Coverage_per_cell_MT"] > 0)
+        merged.loc[mask, "log2_expr"] = np.log2(
+            merged.loc[mask, "Coverage_per_cell_MT"] / merged.loc[mask, "Coverage_per_cell_MG"]
+        )
 
         expr_records.append(merged)
         used_pairs += 1
