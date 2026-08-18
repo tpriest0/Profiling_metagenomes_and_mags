@@ -1,32 +1,17 @@
+#!/usr/bin/env python3
 import pandas as pd
-import argparse
 import numpy as np
 import os
+import argparse
 
-#####
-# Command-line arguments
-######
-parser = argparse.ArgumentParser(
-    description="Compute community-level functional coverage (MG always; MT optional) and expression (optional). "
-                "Optionally compute MAG-level functional coverage/expression if --mapping_file is provided "
-                "(reps duplicated across all linked MAGs)."
-)
-parser.add_argument("-g", "--metag_cov", required=True,
-                    help="Normalised MetaG coverage of gene catalogue representatives (must include Gene_name, Sample, Mean_depth_per_genome).")
-parser.add_argument("-t", "--metat_cov", default=None,
-                    help="Normalised MetaT coverage of gene catalogue representatives. If omitted, MT/expression is skipped.")
-parser.add_argument("-n", "--sample_pairs", default=None,
-                    help="File mapping MetaG_sample to MetaT_sample. Required only if expression is computed.")
-parser.add_argument("-a", "--annotations", required=True, help="Annotations of gene cluster representatives.")
-parser.add_argument("-m", "--mapping_file", default=None,
-                    help="Optional mapping of representative -> member -> MAG. If omitted, MAG-level outputs are skipped.")
-
-parser.add_argument("-s", "--scgs_file", default=None,
-                    help="Mapping of representative -> single copy gene COGs (optional; loaded for compatibility).")
-
+parser = argparse.ArgumentParser(description="Generate KEGG/PFAM functional coverage & expression profiles (genes + MAGs).")
+parser.add_argument("-g", "--metag_cov", required=True, help="Normalized MetaG coverage of gene cluster representatives.")
+parser.add_argument("-t", "--metat_cov", required=True, help="Normalized MetaT coverage of gene cluster representatives.")
+parser.add_argument("-s", "--sample_pairs", required=True, help="MetaG↔MetaT sample mapping file with columns: MetaG_sample, MetaT_sample")
+parser.add_argument("-a", "--annotations", required=True, help="Table mapping Gene_name → KEGG_ko (at least these two columns)")
+parser.add_argument("-m", "--mapping_file", required=True, help="Mapping of gene cluster representative → MAG_name")
 parser.add_argument("-o", "--output_dir", required=True, help="Output directory")
-parser.add_argument("-p", "--output_prefix", required=True, help="Output file prefix")
-parser.add_argument("--epsilon", type=float, default=1e-6, help="Small value to avoid log(0) / division-by-zero")
+parser.add_argument("-p", "--out_prefix", required=True, help="Output file prefix")
 args = parser.parse_args()
 
 os.makedirs(args.output_dir, exist_ok=True)
@@ -36,235 +21,141 @@ os.makedirs(args.output_dir, exist_ok=True)
 #####
 print("[INFO] Loading input tables...")
 metaG_reps = pd.read_csv(args.metag_cov, sep="\t")
+metaT_reps = pd.read_csv(args.metat_cov, sep="\t")
+sample_pairs = pd.read_csv(args.sample_pairs,    sep="\t")
+annotations  = pd.read_csv(args.annotations, sep="\t")
+map_df = pd.read_csv(args.mapping_file, sep="\t")
 
-do_metat = False
-metaT_reps = None
-sample_pairs = None
+# Ensure required columns exist
+for col in ["Sample","Gene_name","Coverage_per_cell"]:
+    if col not in metaG_reps.columns: raise ValueError(f"MetaG file missing column: {col}")
+    if col not in metaT_reps.columns: raise ValueError(f"MetaT file missing column: {col}")
+for col in ["MetaG_sample","MetaT_sample"]:
+    if col not in sample_pairs.columns: raise ValueError(f"sample_pairs file missing column: {col}")
 
-if args.metat_cov:
-    metaT_reps = pd.read_csv(args.metat_cov, sep="\t")
-    do_metat = True
+#####
+# Add MAG mapping for genes
+##### 
+metaG_reps = metaG_reps.merge(
+    map_df, left_on="Gene_name", right_on="Gene_cluster_representative", how="left"
+)[["Sample","Gene_name","Coverage_per_cell","MAG_name"]]
 
-if do_metat and args.sample_pairs:
-    sample_pairs = pd.read_csv(args.sample_pairs, sep="\t")
-elif do_metat and not args.sample_pairs:
-    print("[WARN] MetaT coverage provided but --sample_pairs not provided. Expression outputs will be skipped.")
+metaT_reps = metaT_reps.merge(
+    map_df, left_on="Gene_name", right_on="Gene_cluster_representative", how="left"
+)[["Sample","Gene_name","Coverage_per_cell","MAG_name"]]
 
-do_mag = False
-map_df = None
-if args.mapping_file:
-    map_df = pd.read_csv(args.mapping_file, sep="\t")
-    do_mag = True
+# See calc_norm_cov_and_exp-mags.py for why this fillna is required: a
+# left-join leaves unmatched (genuinely unbinned) genes with MAG_name =
+# NaN, which groupby() silently drops rather than reporting as their own
+# category -- this would otherwise cause MG_prop_of_sample_function /
+# MT_prop_of_sample_function to not sum to 1.0 across MAGs, with no
+# indication why.
+metaG_reps["MAG_name"] = metaG_reps["MAG_name"].fillna("Unbinned")
+metaT_reps["MAG_name"] = metaT_reps["MAG_name"].fillna("Unbinned")
 
-# scgs_file is not used in this script, but keep compatibility if users pass it
-if args.scgs_file:
-    _ = pd.read_csv(args.scgs_file, sep="\t")
+metaG_reps = metaG_reps.drop_duplicates(subset=["Sample","Gene_name","MAG_name"])
+metaT_reps = metaT_reps.drop_duplicates(subset=["Sample","Gene_name","MAG_name"])
 
-# Column checks
-required_cov_cols = {"Gene_name", "Sample", "Mean_depth_per_genome"}
-if not required_cov_cols.issubset(metaG_reps.columns):
-    raise ValueError(f"[ERROR] MetaG coverage file missing columns {required_cov_cols}. Found: {set(metaG_reps.columns)}")
+#####
+# Process annotation table
+#####
+kegg = annotations[["Gene_name","KEGG_ko"]].dropna()
+pfam = annotations[["Gene_name","PFAM_accession"]].dropna()
+metabolic = annotations[["Gene_name","METABOLIC_hmm"]].dropna()
 
-if do_metat and (not required_cov_cols.issubset(metaT_reps.columns)):
-    raise ValueError(f"[ERROR] MetaT coverage file missing columns {required_cov_cols}. Found: {set(metaT_reps.columns)}")
+#####
+# Calculate coverages and expression of functions at the sample and MAG level
+#####
 
-if do_metat and (sample_pairs is not None):
-    if not {"MetaG_sample", "MetaT_sample"}.issubset(sample_pairs.columns):
-        raise ValueError(
-            "[ERROR] sample_pairs file must contain columns: MetaG_sample, MetaT_sample. "
-            f"Found: {list(sample_pairs.columns)}"
-        )
+def compute_profiles(func_map: pd.DataFrame, func_col: str, label: str):
+    # Attach function to gene rows
+    metaG_f = metaG_reps.merge(func_map, on="Gene_name", how="inner")
+    metaT_f = metaT_reps.merge(func_map, on="Gene_name", how="inner")
 
-if do_mag:
-    if not {"Gene_cluster_representative", "MAG_name"}.issubset(map_df.columns):
-        raise ValueError(
-            "[ERROR] mapping_file must contain columns: Gene_cluster_representative, MAG_name. "
-            f"Found: {list(map_df.columns)}"
-        )
+    ### Community function coverage profile: coverage of functions in metaG and metaT (sum of per cell gene coverages per function×sample)
+    
+    funcG = (metaG_f.groupby(["Sample", func_col], as_index=False)
+             .agg(MG_coverage_per_cell=("Coverage_per_cell","sum")))
+    funcT = (metaT_f.groupby(["Sample", func_col], as_index=False)
+             .agg(MT_coverage_per_cell=("Coverage_per_cell","sum")))
 
-###############################################################
-# FUNCTIONAL ANALYSIS
-###############################################################
+    funcG.to_csv(os.path.join(args.output_dir, f"{args.out_prefix}.genes_reps.{label}.MG_cov_normalised.tsv"), sep="\t", index=False)
+    funcT.to_csv(os.path.join(args.output_dir, f"{args.out_prefix}.genes_reps.{label}.MT_cov_normalised.tsv"), sep="\t", index=False)
 
-print("[INFO] Starting functional profiling...")
+    ### Community function expression profile: expression of functions (for samples with both MetaG and MetaT)
+    
+    expr = (funcG.merge(sample_pairs, left_on="Sample", right_on="MetaG_sample", how="inner")
+                 .merge(funcT.rename(columns={"Sample":"MetaT_sample"}),
+                        on=[func_col,"MetaT_sample"], how="inner"))
+    # Compute log2 only when both > 0
+    expr["log2_expr"] = np.where(
+        (expr["MG_coverage_per_cell"] > 0) & (expr["MT_coverage_per_cell"] > 0),
+        np.log2(expr["MT_coverage_per_cell"] / expr["MG_coverage_per_cell"]),
+        np.nan
+    )
+    expr = expr[[func_col,"MetaG_sample","MetaT_sample","MG_coverage_per_cell","MT_coverage_per_cell","log2_expr"]]
+    expr.to_csv(os.path.join(args.output_dir, f"{args.out_prefix}.genes_reps.{label}.expression_profile.tsv"), sep="\t", index=False)
 
-# Load annotation table
-annotation_df = pd.read_csv(args.annotations, sep="\t")
+    ### MAG function coverage profile: coverage of MAG functions in metaG and metaT in relation to whole community
+    
+    # Sum gene coverages within each MAG × sample × function
+    magG = (metaG_f.groupby(["MAG_name","Sample",func_col], as_index=False)
+            .agg(MG_coverage_per_cell=("Coverage_per_cell","sum")))
+    magT = (metaT_f.groupby(["MAG_name","Sample",func_col], as_index=False)
+            .agg(MT_coverage_per_cell=("Coverage_per_cell","sum")))
 
-if not {"Gene_name", "Annotation"}.issubset(annotation_df.columns):
-    raise ValueError(
-        "[ERROR] annotations file must contain columns: Gene_name, Annotation. "
-        f"Found: {list(annotation_df.columns)}"
+    # For proportions, we need sample-level totals per function (across MAGs).
+    # These are exactly funcG/funcT; join to compute per-MAG share.
+    magG = magG.merge(funcG.rename(columns={"MG_coverage_per_cell":"MG_coverage_per_cell_total"}),
+                      on=["Sample",func_col], how="left")
+    magG["MG_prop_of_sample_function"] = np.where(
+        magG["MG_coverage_per_cell_total"] > 0,
+        magG["MG_coverage_per_cell"] / magG["MG_coverage_per_cell_total"],
+        np.nan
     )
 
-annotation_df = annotation_df[["Gene_name", "Annotation"]].dropna()
-annotation_df = annotation_df[annotation_df["Annotation"] != "Unknown"]
-
-############ COMMUNITY-LEVEL FUNCTION COVERAGE ############
-# Use reps only (no MAG duplication) for community coverage.
-
-metaG_comm = metaG_reps.merge(annotation_df, on="Gene_name", how="inner")
-func_MG = (
-    metaG_comm.groupby(["Sample", "Annotation"], as_index=False)
-              .agg(MG_coverage_per_cell=("Mean_depth_per_genome", "sum"))
-)
-
-func_MG.to_csv(
-    os.path.join(args.output_dir, f"{args.output_prefix}.genes.functions.MG_cov_normalised.tsv"),
-    sep="\t", index=False
-)
-
-func_MT = None
-if do_metat:
-    metaT_comm = metaT_reps.merge(annotation_df, on="Gene_name", how="inner")
-    func_MT = (
-        metaT_comm.groupby(["Sample", "Annotation"], as_index=False)
-                  .agg(MT_coverage_per_cell=("Mean_depth_per_genome", "sum"))
-    )
-    func_MT.to_csv(
-        os.path.join(args.output_dir, f"{args.output_prefix}.genes.functions.MT_cov_normalised.tsv"),
-        sep="\t", index=False
+    magT = magT.merge(funcT.rename(columns={"MT_coverage_per_cell":"MT_coverage_per_cell_total"}),
+                      on=["Sample",func_col], how="left")
+    magT["MT_prop_of_sample_function"] = np.where(
+        magT["MT_coverage_per_cell_total"] > 0,
+        magT["MT_coverage_per_cell"] / magT["MT_coverage_per_cell_total"],
+        np.nan
     )
 
-############ COMMUNITY-LEVEL EXPRESSION (paired samples) ############
-if do_metat and (sample_pairs is not None):
-    func_MG_key = func_MG.merge(
-        sample_pairs,
-        left_on="Sample",
-        right_on="MetaG_sample",
-        how="inner"
+    magG_out = magG[["MAG_name","Sample",func_col,"MG_coverage_per_cell","MG_prop_of_sample_function"]]
+    magT_out = magT[["MAG_name","Sample",func_col,"MT_coverage_per_cell","MT_prop_of_sample_function"]]
+
+    magG_out.to_csv(os.path.join(args.output_dir, f"{args.out_prefix}.mags.{label}.MG_cov_normalised.tsv"), sep="\t", index=False)
+    magT_out.to_csv(os.path.join(args.output_dir, f"{args.out_prefix}.mags.{label}.MT_cov_normalised.tsv"), sep="\t", index=False)
+
+    ### MAG function expression profile: coverage of MAG functions in metaG and metaT in relation to whole community
+    
+    # Pair via MetaG_sample→MetaT_sample; then bring MAG-level MT function coverage from magT_out
+    expr_mag = (magG_out.merge(sample_pairs, left_on="Sample", right_on="MetaG_sample", how="inner")
+                       .merge(magT_out.rename(columns={"Sample":"MetaT_sample"}),
+                              on=["MAG_name",func_col,"MetaT_sample"], how="inner"))
+
+    # Compute log2 only when both > 0
+    expr_mag["log2_expr"] = np.where(
+        (expr_mag["MG_coverage_per_cell"] > 0) & (expr_mag["MT_coverage_per_cell"] > 0),
+        np.log2(expr_mag["MT_coverage_per_cell"] / expr_mag["MG_coverage_per_cell"]),
+        np.nan
     )
 
-    func_expr = func_MG_key.merge(
-        func_MT.rename(columns={"Sample": "MetaT_sample"}),
-        on=["Annotation", "MetaT_sample"],
-        how="inner"
-    )
-
-    func_expr["log2_expr"] = np.log2(
-        (func_expr["MT_coverage_per_cell"] + args.epsilon) /
-        (func_expr["MG_coverage_per_cell"] + args.epsilon)
-    )
-
-    func_expr = func_expr[[
-        "Annotation", "MetaG_sample", "MetaT_sample",
-        "MG_coverage_per_cell", "MT_coverage_per_cell", "log2_expr"
+    # Keep both MG and MT proportion columns (each relative to its own sample-level function total)
+    expr_mag = expr_mag[[
+        "MAG_name", func_col, "MetaG_sample", "MetaT_sample",
+        "MG_coverage_per_cell", "MG_prop_of_sample_function",
+        "MT_coverage_per_cell", "MT_prop_of_sample_function",
+        "log2_expr"
     ]]
+    expr_mag.to_csv(os.path.join(args.output_dir, f"{args.out_prefix}.mags.{label}.expression_profile.tsv"), sep="\t", index=False)
 
-    func_expr.to_csv(
-        os.path.join(args.output_dir, f"{args.output_prefix}.genes.functions.expression_profile.tsv"),
-        sep="\t", index=False
-    )
-else:
-    if do_metat and (sample_pairs is None):
-        print("[INFO] Skipping community-level expression (missing --sample_pairs).")
-    elif not do_metat:
-        print("[INFO] Skipping community-level MT + expression (no MetaT coverage provided).")
+    print(f"[INFO] {label}: functions={funcG[func_col].nunique()}, MAGs={magG_out['MAG_name'].nunique()}")
 
-###############################################################
-# OPTIONAL: MAG-LEVEL FUNCTION COVERAGE + EXPRESSION
-###############################################################
-if do_mag:
-    print("[INFO] MAG mapping provided: computing MAG-level functional profiles...")
+# --------- Run for KEGG & PFAM ----------
+compute_profiles(kegg, "KEGG_ko", "KEGG")
+compute_profiles(pfam, "PFAM_accession", "PFAM")
+# compute_profiles(metabolic, "METABOLIC_hmm", "METABOLIC")
 
-    rep_mag_pairs = (
-        map_df[["Gene_cluster_representative", "MAG_name"]]
-        .dropna()
-        .drop_duplicates()
-        .rename(columns={"Gene_cluster_representative": "Gene_name"})
-    )
-
-    # Duplicate reps across all linked MAGs
-    metaG_func = (
-        metaG_reps.merge(annotation_df, on="Gene_name", how="inner")
-                  .merge(rep_mag_pairs, on="Gene_name", how="inner")
-    )
-
-    mag_func_MG = (
-        metaG_func.groupby(["MAG_name", "Sample", "Annotation"], as_index=False)
-                  .agg(MG_coverage_per_cell=("Mean_depth_per_genome", "sum"))
-    )
-
-    # Proportions (Option 1; same methodology as before)
-    mg_totals = (
-        mag_func_MG.groupby(["Sample", "Annotation"], as_index=False)
-                   .agg(total_func_MG=("MG_coverage_per_cell", "sum"))
-    )
-    mag_func_MG = mag_func_MG.merge(mg_totals, on=["Sample", "Annotation"], how="left")
-    mag_func_MG["Proportion_of_sample_coverage_MG"] = (
-        mag_func_MG["MG_coverage_per_cell"] / (mag_func_MG["total_func_MG"] + args.epsilon)
-    )
-
-    mag_func_MG[[
-        "MAG_name", "Sample", "Annotation", "MG_coverage_per_cell",
-        "Proportion_of_sample_coverage_MG"
-    ]].to_csv(
-        os.path.join(args.output_dir, f"{args.output_prefix}.mags.functions.MG_cov_normalised.tsv"),
-        sep="\t", index=False
-    )
-
-    mag_func_MT = None
-    if do_metat:
-        metaT_func = (
-            metaT_reps.merge(annotation_df, on="Gene_name", how="inner")
-                      .merge(rep_mag_pairs, on="Gene_name", how="inner")
-        )
-
-        mag_func_MT = (
-            metaT_func.groupby(["MAG_name", "Sample", "Annotation"], as_index=False)
-                      .agg(MT_coverage_per_cell=("Mean_depth_per_genome", "sum"))
-        )
-
-        mt_totals = (
-            mag_func_MT.groupby(["Sample", "Annotation"], as_index=False)
-                       .agg(total_func_MT=("MT_coverage_per_cell", "sum"))
-        )
-        mag_func_MT = mag_func_MT.merge(mt_totals, on=["Sample", "Annotation"], how="left")
-        mag_func_MT["Proportion_of_sample_coverage_MT"] = (
-            mag_func_MT["MT_coverage_per_cell"] / (mag_func_MT["total_func_MT"] + args.epsilon)
-        )
-
-        mag_func_MT[[
-            "MAG_name", "Sample", "Annotation", "MT_coverage_per_cell",
-            "Proportion_of_sample_coverage_MT"
-        ]].to_csv(
-            os.path.join(args.output_dir, f"{args.output_prefix}.mags.functions.MT_cov_normalised.tsv"),
-            sep="\t", index=False
-        )
-
-    # MAG FUNCTION EXPRESSION (paired samples)
-    if do_metat and (sample_pairs is not None):
-        mag_expr = (
-            mag_func_MG.merge(sample_pairs, left_on="Sample", right_on="MetaG_sample", how="inner")
-                       .merge(
-                            mag_func_MT.rename(columns={"Sample": "MetaT_sample"}),
-                            on=["MAG_name", "Annotation", "MetaT_sample"],
-                            how="inner"
-                        )
-        )
-
-        mag_expr["log2_expr"] = np.log2(
-            (mag_expr["Proportion_of_sample_coverage_MT"] + args.epsilon) /
-            (mag_expr["Proportion_of_sample_coverage_MG"] + args.epsilon)
-        )
-
-        mag_expr = mag_expr[[
-            "MAG_name", "Annotation", "MetaG_sample", "MetaT_sample",
-            "MG_coverage_per_cell", "Proportion_of_sample_coverage_MG",
-            "MT_coverage_per_cell", "Proportion_of_sample_coverage_MT",
-            "log2_expr"
-        ]]
-
-        mag_expr.to_csv(
-            os.path.join(args.output_dir, f"{args.output_prefix}.mags.functions.expression_profile.tsv"),
-            sep="\t", index=False
-        )
-    else:
-        if do_metat and (sample_pairs is None):
-            print("[INFO] Skipping MAG-level expression (missing --sample_pairs).")
-        elif not do_metat:
-            print("[INFO] Skipping MAG-level MT + expression (no MetaT coverage provided).")
-else:
-    print("[INFO] No --mapping_file provided: skipping MAG-level functional profiling.")
-
-print("[INFO] Functional profiling complete.")
+print("\n[INFO] ✅ Functional profiling completed.")
