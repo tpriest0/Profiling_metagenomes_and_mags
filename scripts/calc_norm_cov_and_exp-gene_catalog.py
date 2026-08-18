@@ -58,7 +58,7 @@ def process_coverage_file(cov_file, scg_map):
         )
     
     # Normalise all genes by the SCG coverage
-    df["Coverage_per_cell"] = df["Median_coverage_per_kbp"] / scg_median_cov
+    df["Mean_depth_per_genome"] = df["Median_coverage_per_kbp"] / scg_median_cov
     df["Sample"] = sample_name
 
 
@@ -68,7 +68,7 @@ def process_coverage_file(cov_file, scg_map):
         "Gene_length",
         "Horizontal_coverage",
         "Median_coverage_per_kbp",
-        "Coverage_per_cell",
+        "Mean_depth_per_genome",
     ]
     # keep only columns that exist (in case some runs have fewer)
     keep_cols = [c for c in keep_cols if c in df.columns]
@@ -179,8 +179,8 @@ if do_metat:
                 mt_df = metaT_data[mt_name]
 
                 merged = pd.merge(
-                    mg_df[["Gene_name", "Coverage_per_cell"]],
-                    mt_df[["Gene_name", "Coverage_per_cell"]],
+                    mg_df[["Gene_name", "Mean_depth_per_genome"]],
+                    mt_df[["Gene_name", "Mean_depth_per_genome"]],
                     on="Gene_name",
                     suffixes=("_MG", "_MT")
                 )
@@ -188,8 +188,8 @@ if do_metat:
                 merged["MetaG_sample"] = mg_name
                 merged["MetaT_sample"] = mt_name
                 merged["log2_expr"] = np.log2(
-                    (merged["Coverage_per_cell_MT"] + args.epsilon) /
-                    (merged["Coverage_per_cell_MG"] + args.epsilon)
+                    (merged["Mean_depth_per_genome_MT"] + args.epsilon) /
+                    (merged["Mean_depth_per_genome_MG"] + args.epsilon)
                 )
 
                 expr_records.append(merged)
