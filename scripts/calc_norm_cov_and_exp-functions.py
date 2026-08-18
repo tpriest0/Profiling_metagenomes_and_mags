@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser(
                 "(reps duplicated across all linked MAGs)."
 )
 parser.add_argument("-g", "--metag_cov", required=True,
-                    help="Normalised MetaG coverage of gene catalogue representatives (must include Gene_name, Sample, Coverage_per_cell).")
+                    help="Normalised MetaG coverage of gene catalogue representatives (must include Gene_name, Sample, Mean_depth_per_genome).")
 parser.add_argument("-t", "--metat_cov", default=None,
                     help="Normalised MetaT coverage of gene catalogue representatives. If omitted, MT/expression is skipped.")
 parser.add_argument("-n", "--sample_pairs", default=None,
@@ -61,7 +61,7 @@ if args.scgs_file:
     _ = pd.read_csv(args.scgs_file, sep="\t")
 
 # Column checks
-required_cov_cols = {"Gene_name", "Sample", "Coverage_per_cell"}
+required_cov_cols = {"Gene_name", "Sample", "Mean_depth_per_genome"}
 if not required_cov_cols.issubset(metaG_reps.columns):
     raise ValueError(f"[ERROR] MetaG coverage file missing columns {required_cov_cols}. Found: {set(metaG_reps.columns)}")
 
@@ -106,7 +106,7 @@ annotation_df = annotation_df[annotation_df["Annotation"] != "Unknown"]
 metaG_comm = metaG_reps.merge(annotation_df, on="Gene_name", how="inner")
 func_MG = (
     metaG_comm.groupby(["Sample", "Annotation"], as_index=False)
-              .agg(MG_coverage_per_cell=("Coverage_per_cell", "sum"))
+              .agg(MG_coverage_per_cell=("Mean_depth_per_genome", "sum"))
 )
 
 func_MG.to_csv(
@@ -119,7 +119,7 @@ if do_metat:
     metaT_comm = metaT_reps.merge(annotation_df, on="Gene_name", how="inner")
     func_MT = (
         metaT_comm.groupby(["Sample", "Annotation"], as_index=False)
-                  .agg(MT_coverage_per_cell=("Coverage_per_cell", "sum"))
+                  .agg(MT_coverage_per_cell=("Mean_depth_per_genome", "sum"))
     )
     func_MT.to_csv(
         os.path.join(args.output_dir, f"{args.output_prefix}.genes.functions.MT_cov_normalised.tsv"),
@@ -182,7 +182,7 @@ if do_mag:
 
     mag_func_MG = (
         metaG_func.groupby(["MAG_name", "Sample", "Annotation"], as_index=False)
-                  .agg(MG_coverage_per_cell=("Coverage_per_cell", "sum"))
+                  .agg(MG_coverage_per_cell=("Mean_depth_per_genome", "sum"))
     )
 
     # Proportions (Option 1; same methodology as before)
@@ -212,7 +212,7 @@ if do_mag:
 
         mag_func_MT = (
             metaT_func.groupby(["MAG_name", "Sample", "Annotation"], as_index=False)
-                      .agg(MT_coverage_per_cell=("Coverage_per_cell", "sum"))
+                      .agg(MT_coverage_per_cell=("Mean_depth_per_genome", "sum"))
         )
 
         mt_totals = (
