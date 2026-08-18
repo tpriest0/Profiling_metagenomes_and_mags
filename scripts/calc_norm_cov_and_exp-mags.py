@@ -47,7 +47,7 @@ elif do_metat and not args.sample_pairs:
     print("[WARN] MetaT coverage provided but --sample_pairs not provided. Expression will be skipped.")
 
 # Basic checks
-required_cov_cols = {"Sample", "Gene_name", "Coverage_per_cell"}
+required_cov_cols = {"Sample", "Gene_name", "Mean_depth_per_genome"}
 if not required_cov_cols.issubset(metaG_reps.columns):
     raise ValueError(f"[ERROR] MetaG coverage file missing columns {required_cov_cols}. Found: {set(metaG_reps.columns)}")
 
@@ -80,14 +80,14 @@ print(f"[INFO] Loaded mapping file: {len(map_df)} mappings")
 #####
 metaG_reps = metaG_reps.merge(
     map_df, left_on="Gene_name", right_on="Gene_cluster_representative", how="left"
-)[["Sample", "Gene_name", "Coverage_per_cell", "MAG_name"]]
+)[["Sample", "Gene_name", "Mean_depth_per_genome", "MAG_name"]]
 
 metaG_reps = metaG_reps.drop_duplicates(subset=["Sample", "Gene_name", "MAG_name"])
 
 if do_metat:
     metaT_reps = metaT_reps.merge(
         map_df, left_on="Gene_name", right_on="Gene_cluster_representative", how="left"
-    )[["Sample", "Gene_name", "Coverage_per_cell", "MAG_name"]]
+    )[["Sample", "Gene_name", "Mean_depth_per_genome", "MAG_name"]]
 
     metaT_reps = metaT_reps.drop_duplicates(subset=["Sample", "Gene_name", "MAG_name"])
 
@@ -130,12 +130,12 @@ metaG_scg_mag = metaG_scg[metaG_scg["MAG_name"] != "Unbinned"]
 metaG_scg_unb = metaG_scg[metaG_scg["MAG_name"] == "Unbinned"]
 
 # MAGs (binned): sum per COG then median across COGs
-metaG_mag = mag_abundance_from_scgs(metaG_scg_mag, "Coverage_per_cell", "MAG_cov_MG")
+metaG_mag = mag_abundance_from_scgs(metaG_scg_mag, "Mean_depth_per_genome", "MAG_cov_MG")
 
 # Unbinned: sum per COG then median across COGs
 unbinned_G = (
     metaG_scg_unb.groupby(["Sample", "COG"], as_index=False)
-                 .agg(cog_sum=("Coverage_per_cell", "sum"))
+                 .agg(cog_sum=("Mean_depth_per_genome", "sum"))
 )
 unbinned_G = (
     unbinned_G.groupby("Sample", as_index=False)
@@ -172,11 +172,11 @@ if do_metat:
     metaT_scg_mag = metaT_scg[metaT_scg["MAG_name"] != "Unbinned"]
     metaT_scg_unb = metaT_scg[metaT_scg["MAG_name"] == "Unbinned"]
 
-    metaT_mag = mag_abundance_from_scgs(metaT_scg_mag, "Coverage_per_cell", "MAG_cov_MT")
+    metaT_mag = mag_abundance_from_scgs(metaT_scg_mag, "Mean_depth_per_genome", "MAG_cov_MT")
 
     unbinned_T = (
         metaT_scg_unb.groupby(["Sample", "COG"], as_index=False)
-                     .agg(cog_sum=("Coverage_per_cell", "sum"))
+                     .agg(cog_sum=("Mean_depth_per_genome", "sum"))
     )
     unbinned_T = (
         unbinned_T.groupby("Sample", as_index=False)
