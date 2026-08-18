@@ -307,7 +307,7 @@ rule normalise_coverage_by_scgs:
 
                 # Task 5: write filtered table with Gene_length retained and
                 # the new normalised column added
-                print "Gene","Gene_length","Num_bases_covered","Prop_bases_covered","Mean_depth","Mean_depth_per_kbp","Copy_number_per_genome"
+                print "Gene","Gene_length","Num_bases_covered","Prop_bases_covered","Mean_depth","Mean_depth_per_kbp","Mean_depth_per_genome"
                 for (i=1; i<=n; i++) {{
                     # Task 4: normalise every retained gene's coverage by
                     # Number_of_genomes_sequenced
