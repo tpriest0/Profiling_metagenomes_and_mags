@@ -5,8 +5,6 @@ OUTPUT_DIR: "" # Output directory - note that if you plan to run this workflow o
 WORKFLOW_DIR: "" # Path to this directory (gene_coverage_pipeline directory)
 SAMPLE_NAMES: "" # File containing list of sample names
 READ_DIR: "" # Path to directory containing the R1 and R2 metagenomic reads used to build the assemblies. Note that these files must be named SAMPLE_NAME_1.fa.gz and SAMPLE_NAME_2.fa.gz
-OUT_PREFIX: "" # Prefix for output files (i.e. project name)
-
 
 #########################
 # Execution code
