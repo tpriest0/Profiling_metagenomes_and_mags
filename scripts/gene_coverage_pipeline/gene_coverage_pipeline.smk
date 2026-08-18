@@ -55,10 +55,31 @@ def read2(sample):
 ######################
 rule all:
     input:
-        build_index_marker = os.path.join(config['WORKING_DIR'], "gene_catalog", "build_index.done"),
-        map_reads_markers = expand(os.path.join(config['WORKING_DIR'], "map_reads", "map_reads_{sample}.done"), sample=SAMPLES),
-        filter_mapped_reads_markers = expand(os.path.join(config['WORKING_DIR'], "filter_mapped_reads", "filter_{sample}.done"), sample=SAMPLES),
-        bam_to_coverage_markers = expand(os.path.join(config['WORKING_DIR'], "coverage", "bam_to_coverage_{sample}.done"), sample=SAMPLES)
+        build_index_marker = os.path.join(config['OUTPUT_DIR'], "gene_catalog", "build_index.done"),
+        map_reads_markers = expand(os.path.join(config['OUTPUT_DIR'], "map_reads", "map_reads_{sample}.done"), sample=SAMPLES),
+        filter_mapped_reads_markers = expand(os.path.join(config['OUTPUT_DIR'], "filter_mapped_reads", "filter_{sample}.done"), sample=SAMPLES),
+        bam_to_coverage_markers = expand(os.path.join(config['OUTPUT_DIR'], "coverage", "bam_to_coverage_{sample}.done"), sample=SAMPLES)
+
+rule bwa_index:
+    conda:
+        "/nfs/cds-peta/exports/biol_micro_cds_gr_sunagawa/scratch/tpriest/projects/giulia_project/scripts/gene_coverage_pipeline/coverage_env.yml"
+    input:
+        ref=config['REFERENCE']
+    output:
+        amb=config['REFERENCE'] + ".amb",
+        ann=config['REFERENCE'] + ".ann",
+        bwt=config['REFERENCE'] + ".bwt",
+        pac=config['REFERENCE'] + ".pac",
+        sa=config['REFERENCE'] + ".sa",
+        marker=os.path.join(config['OUTPUT_DIR'], "gene_catalog", "build_index.done")
+    resources:
+        mem=32000
+    log:
+        os.path.join(config['OUTPUT_DIR'], "logs", "bwa_index.log")
+    shell:
+        """
+        bwa index {input.ref}
+        """
 
 rule map_reads:
     conda:
@@ -66,36 +87,45 @@ rule map_reads:
     input:
         r1=lambda wc: read1(wc.sample),
         r2=lambda wc: read2(wc.sample),
-        marker=os.path.join(config['WORKING_DIR'], "gene_catalog", "build_index.done")
+        ref=config['REFERENCE'],
+        bwt=config['REFERENCE'] + ".bwt",
+        marker=os.path.join(config['OUTPUT_DIR'], "gene_catalog", "build_index.done")
     output:
-        marker=os.path.join(config['WORKING_DIR'], "map_reads", "map_reads_{sample}.done")
+        marker=os.path.join(config['OUTPUT_DIR'], "map_reads", "map_reads_{sample}.done")
     threads: 
         12
     resources:
-        mem=10000
+        mem=6000
     params:
-        ref=expand(os.path.join(config['WORKING_DIR'], "gene_catalog", config["OUT_PREFIX"] + ".genes.reps.nt.fa")),
-        map_reads_dir=os.path.join(config['WORKING_DIR'], "map_reads"),
-        bam=os.path.join(config['WORKING_DIR'], "map_reads", "{sample}.bam")
+        map_reads_dir=os.path.join(config['OUTPUT_DIR'], "map_reads"),
+        bam=os.path.join(config['OUTPUT_DIR'], "map_reads", "{sample}.bam")
     log:
-        os.path.join(config['WORKING_DIR'], "logs", "map_reads_{sample}.log")
+        os.path.join(config['OUTPUT_DIR'], "logs", "map_reads_{sample}.log")
     shell:
         """
-        mkdir -p $(dirname {params.bam})
+        mkdir -p {params.map_reads_dir}
 
-        echo "Mapping reads for {wildcards.sample}" > {log} 2>&1
+        echo "Mapping reads for {wildcards.sample}" >> {log}
         echo "R1: {input.r1}" >> {log}
         echo "R2: {input.r2}" >> {log}
 
-        bwa mem -a -t {threads} {params.ref} {input.r1} {input.r2} 2>> {log} | \
-            samtools view -@ {threads} -bh - > {params.bam} 2>> {log}
-
-        if [[ -s {params.bam} ]]; 
+        if [[ -s {input.r1} ]] && [[ -s {input.r2} ]];
         then
-            echo "BAM file created for {wildcards.sample}" >> {log}
+
+            bwa mem -a -t {threads} {input.ref} {input.r1} {input.r2} &>> {log} | \
+            samtools view -@ {threads} -bh - > {params.bam} &>> {log}
+        
+        else
+            echo "Could not find input reads for {wildcards.sample}."
+            exit 1
+        fi
+
+        if [[ -s {params.bam} ]];
+        then
+            echo "Bam file created for {wildcards.sample}" >> {log}
             touch {output.marker}
         else
-            echo "Creation of BAM file FAILED for {wildcards.sample}" >> {log}
+            echo "Creation of bam file FAILED for {wildcards.sample}" >> {log}
             exit 1
         fi
         """
@@ -104,27 +134,29 @@ rule filter_mapped_reads:
     conda:
         os.path.join(config['WORKFLOW_DIR'], "envs", "bwa_env.yaml")
     input:
-        marker=os.path.join(config['WORKING_DIR'], "map_reads", "map_reads_{sample}.done")
+        marker=os.path.join(config['OUTPUT_DIR'], "map_reads", "map_reads_{sample}.done")
     output:
-        marker=os.path.join(config['WORKING_DIR'], "filter_mapped_reads", "filter_{sample}.done")
+        marker=os.path.join(config['OUTPUT_DIR'], "filter_mapped_reads", "filter_{sample}.done")
     threads: 
-        4
+        2
     resources:
         mem=12000
     params:
-        bam=os.path.join(config['WORKING_DIR'], "map_reads", "{sample}.bam"),
-        filtbam=os.path.join(config['WORKING_DIR'], "filter_mapped_reads", "{sample}.filtered.bam")
+        bam=os.path.join(config['OUTPUT_DIR'], "map_reads", "{sample}.bam"),
+        filtbam=os.path.join(config['OUTPUT_DIR'], "filter_mapped_reads", "{sample}.filtered.bam")
     log:
-        os.path.join(config['WORKING_DIR'], "logs", "filter_mapped_reads_{sample}.log")
+        os.path.join(config['OUTPUT_DIR'], "logs", "filter_mapped_reads_{sample}.log")
     shell:
         """
-
-        mkdir -p $(dirname {params.filtbam}) >> {log}
+        mkdir -p $(dirname {params.filtbam})
 
         # Keep only reads with:
         #  - identity >= 0.95  (1 - NM / aligned_M)
         #  - coverage >= 0.8   (aligned_M / read_length)
-        samtools view -@ {threads} -h {params.bam} 2>> {log} | \
+
+        echo "Filtering read alignments to retain those with >=0.95 identity and >=0.8 horizontal coverage for {wildcards.sample}" >> {log}
+
+        samtools view -@ {threads} -h {params.bam} &>> {log} | \
         awk 'BEGIN{{OFS="\\t"}}
              /^@/ {{print; next}}
              {{
@@ -150,8 +182,8 @@ rule filter_mapped_reads:
                      if (pid >= 0.95 && cov >= 0.80) print;
                  }}
              }}' 2>> {log} | \
-        samtools view -@ {threads} -bh - 2>> {log} | \
-        samtools sort -@ {threads} -o {params.filtbam} - 2>> {log}
+        samtools view -@ {threads} -bh - &>> {log} | \
+        samtools sort -@ {threads} -o {params.filtbam} - &>> {log}
 
         if [[ -s {params.filtbam} ]]; 
         then
@@ -165,38 +197,55 @@ rule filter_mapped_reads:
 
 rule bam_to_coverage:
     conda:
-        os.path.join(config['WORKFLOW_DIR'], "envs", "python_env.yaml")
+        os.path.join(config['WORKFLOW_DIR'], "envs", "bwa_env.yaml")
     input:
-        marker=os.path.join(config['WORKING_DIR'], "filter_mapped_reads", "filter_{sample}.done")
+        marker=os.path.join(config['OUTPUT_DIR'], "filter_mapped_reads", "filter_{sample}.done")
     output:
-        marker=os.path.join(config['WORKING_DIR'], "coverage", "bam_to_coverage_{sample}.done")
+        marker=os.path.join(config['OUTPUT_DIR'], "coverage", "bam_to_coverage_{sample}.done")
     threads: 
-        12
+        1
     resources:
-        mem=8000
+        mem=40000
     params:
-        coverage_script=os.path.join(config['WORKFLOW_DIR'], "calc_gene_coverage_from_bam.py"),
-        filtbam=os.path.join(config['WORKING_DIR'], "filter_mapped_reads", "{sample}.filtered.bam"),
-        coverage=os.path.join(config['WORKING_DIR'], "coverage", "{sample}.coverage.tsv")
+        bam=os.path.join(config['OUTPUT_DIR'], "map_reads", "{sample}.bam"),
+        filtbam=os.path.join(config['OUTPUT_DIR'], "filter_mapped_reads", "{sample}.filtered.bam"),
+        raw_coverage=os.path.join(config['OUTPUT_DIR'], "coverage", "{sample}.samtools_coverage.tsv"),
+        coverage=os.path.join(config['OUTPUT_DIR'], "coverage", "{sample}.coverage.tsv")
     log:
-        os.path.join(config['WORKING_DIR'], "logs", "bam_to_coverage_{sample}.log")
+        os.path.join(config['OUTPUT_DIR'], "logs", "bam_to_coverage_{sample}.log")
     shell:
         """
+        ### Use samtools coverage command to return coverage statistics for each reference
+        ### We also use the -d 0, to include even zero-covered positions, and we manually
+        ### specify the --ff fields to include, so that we can remove the default SECONDARY,
+        ### which ignores secondary alignments
+
         if [[ -s {params.filtbam} ]];
         then
-            echo "Filtering of bam file complete"
-            echo "Calculating coverage statistics"
+            echo "Filtering of read alignments complete"
 
-            python {params.coverage_script} -i {params.filtbam} -o {params.coverage} -t {threads}
+            echo "Calculating coverage statistics based on filtered read alignments" >> {log}
+
+            samtools coverage -d 0 --ff UNMAP,QCFAIL,DUP {params.filtbam} -o {params.raw_coverage} &>> {log}
+
+            awk 'BEGIN{{OFS="\\t"}}
+                NR==1 {{print "Gene","Gene_length","Num_bases_covered","Prop_bases_covered","Mean_depth","Mean_depth_per_kbp"; next}}
+                {{gene_length=$3-$2+1; print $1,gene_length,$5,$6,$7,$7*(1000/gene_length)}}' \
+                {params.raw_coverage} > {params.coverage} &>> {log}
         else
-            echo "Filtering of bam file failed for {wildcards.sample}"
+            echo "Filtered bam file not found" >> {log}
+            echo "Exiting..." >> {log}
+            exit 1
         fi
 
         if [[ -s {params.coverage} ]];
         then
-            echo "Calculation of coverage from bam file complete."
+            echo "Calculation of coverage statistics for {wildcards.sample} complete" >> {log}
+            echo "Cleaning up working directory"
+            rm -rf {params.bam} {params.raw_coverage}
             touch {output.marker}
         else
-            echo "Calculation of coverage from bam file FAILED"
+            echo "Calculation of coverage statistics for {wildcards.sample} FAILED" >> {log}
+            exit 1
         fi
         """
